@@ -228,7 +228,7 @@ Comments and trailing commas are allowed.
 
 | Field | Meaning |
 | --- | --- |
-| `driveLetter` | `"F"` or `"F:"`. `A:`, `B:` and `C:` are rejected. |
+| `driveLetter` | `"F"` or `"F:"`. Any letter except `C:`. A drive letter already held by a local volume is left alone at run time. |
 | `uncPath` | `\\server\share`. Must be UNC. |
 | `label` | Optional friendly name shown in Explorer. |
 | `groupId` | **Preferred.** Entra group object ID — survives group renames. |
