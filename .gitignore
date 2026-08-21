@@ -1,0 +1,7 @@
+# Installers are published as Release assets, never committed:
+# a 50+ MB binary in git history is permanent and cannot be pruned cleanly.
+*.msi
+*.intunewin
+
+.DS_Store
+Thumbs.db
