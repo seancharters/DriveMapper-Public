@@ -82,11 +82,17 @@ sticking point:
 | --- | --- |
 | Azure Files with Entra Kerberos | **Yes** — the supported path for Entra-joined devices. |
 | On-premises file server, hybrid-joined device with line of sight to a DC | **Yes** — ordinary Kerberos. |
-| On-premises file server, **cloud-only** Entra-joined device | **No** — there is no Kerberos path. Every mapping fails with error 1326 or 5. |
+| On-premises file server, **cloud-only** Entra-joined device | **Yes\*** — only when Cloud Kerberos Trust is configured |
 
-If you are in the third case, fix that first. No drive mapper of any kind can work around
-it; the options are Azure Files with Entra Kerberos, Entra Domain Services, or a stored
-credential in Credential Manager.
+\* Microsoft Entra Kerberos (cloud Kerberos trust) lets an Entra-joined device obtain a
+Kerberos ticket for an on-premises file server. It requires the user to have a hybrid
+identity synced from on-premises AD, line of sight to a domain controller, and the
+`AzureADKerberos` object provisioned in AD. Without it, mappings to an on-premises
+server fail with error 1326 or 5.
+
+If cloud Kerberos trust is not an option for you, the alternatives are Azure Files with
+Entra Kerberos, Microsoft Entra Domain Services, or a stored credential in Credential
+Manager. No drive mapper can substitute for one of these.
 
 Confirm quickly on a test device:
 
@@ -545,7 +551,7 @@ F: already points at \\fs01\finance; left as is.
 | 5 | Access denied | No NTFS/share rights. Group membership for *mapping* and rights on the *share* are two different things. |
 | 85 | Drive letter already in use | Another tool or a local volume owns the letter. |
 | 1219 | Conflicting credentials | An existing SMB session to the same server uses a different account. `net use \\server /delete`. |
-| 1326 | Logon failure | See [Authentication to the file share](#️-authentication-to-the-file-share). |
+| 1326 | Logon failure | The share did not accept the user's identity. On a cloud-only Entra-joined device targeting an on-premises server, this usually means Cloud Kerberos Trust is not configured. |
 
 ### Drives are mapped but invisible in Explorer
 

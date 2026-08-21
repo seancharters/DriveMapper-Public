@@ -63,15 +63,19 @@ updating drive mappings without reinstalling, and secret rotation.
 ## ⚠️ Read this before deploying
 
 DriveMapper decides *which* drives to map. Windows still has to authenticate the user to the
-SMB share, and on a **cloud-only** Entra-joined device there is no Kerberos path to an
-**on-premises** file server — every mapping there fails with error 1326 or 5, regardless of
-this tool.
+SMB share, and that part depends on how the device is joined — not on this tool.
 
 | Scenario | Works? |
 | --- | --- |
 | Azure Files with Entra Kerberos | **Yes** |
 | On-premises file server, hybrid-joined device with line of sight to a DC | **Yes** |
-| On-premises file server, cloud-only Entra-joined device | **No** |
+| On-premises file server, cloud-only Entra-joined device | **Yes\*** — only when Cloud Kerberos Trust is configured |
+
+\* Microsoft Entra Kerberos (cloud Kerberos trust) lets an Entra-joined device obtain a
+Kerberos ticket for an on-premises file server. It requires the user to have a hybrid
+identity synced from on-premises AD, line of sight to a domain controller, and the
+`AzureADKerberos` object provisioned in AD. Without it, mappings to an on-premises
+server fail with error 1326 or 5.
 
 Confirm on a test device before deploying widely:
 
