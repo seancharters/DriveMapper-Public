@@ -419,6 +419,19 @@ So detection is a **plain registry rule, no scripting**:
 That last row matters: the service writes to the 64-bit view, and a 32-bit rule looks in
 `WOW6432Node` and finds nothing.
 
+> **Do not use PowerShell syntax here.** Intune accepts `HKEY_LOCAL_MACHINE\SOFTWARE\DriveMapper`
+> or `HKLM\SOFTWARE\DriveMapper`. A `HKLM:\...` path with a colon is a PowerShell drive
+> qualifier, not a registry path — the portal accepts it with a green tick and it then never
+> matches on a device.
+
+**Version comparison** works as an alternative to string comparison, because
+`Update-DriveMapperConfig.ps1` always generates a parseable `yyyy.MM.dd.N`. Pair it with
+*Greater than or equal to* if you only ever roll configurations forward. Use *String
+comparison → Equals* if you want to be able to deploy an older configuration to a device that
+already has a newer one; with a `>=` rule, such a device reports as compliant and never
+receives it.
+
+
 ### The update loop
 
 1. Edit the mappings in `drivemap.json`.
