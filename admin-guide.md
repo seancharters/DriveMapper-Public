@@ -295,6 +295,49 @@ cd "C:\Program Files\DriveMapper"
 `--diagnose` lists every active session with its SID, resolves each user's Entra groups, and
 prints MAP or skip per mapping. It is the fastest way to confirm a deployment end to end.
 
+### Install logs
+
+DriveMapper mirrors what the installer did into its own log, so a silent install still
+leaves a record:
+
+```
+C:\ProgramData\DriveMapper\logs\service-YYYYMMDD.log
+```
+
+That covers directory and permission provisioning, the configuration import **and whether
+it validated**, and secret storage. It never contains the secret itself.
+
+Windows Installer keeps no verbose log of its own unless you ask for one:
+
+```powershell
+msiexec /i DriveMapper.msi /qn /l*v C:\Windows\Temp\DriveMapper-install.log SECRET="<secret>"
+```
+
+Add `/l*v` whenever an install fails for a reason the DriveMapper log does not explain —
+it is the only place MSI records its own decisions, such as a failed launch condition or a
+custom action's exit code.
+
+A summary always lands in the event log regardless:
+
+```powershell
+Get-EventLog -LogName Application -Source MsiInstaller -Newest 20 | Format-Table -AutoSize
+```
+
+When deploying through Intune, the client-side record is:
+
+```
+C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\IntuneManagementExtension.log
+C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\AgentExecutor.log
+```
+
+`IntuneManagementExtension.log` shows the command line Intune ran and the exit code it got
+back, which is what to check when an app reports as failed but the device looks fine.
+
+> A configuration that fails validation makes the install fail on purpose. The reason is in
+> `service-YYYYMMDD.log`; the MSI log will only tell you a custom action returned non-zero.
+
+---
+
 ### Uninstalling
 
 ```powershell
