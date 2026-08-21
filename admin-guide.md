@@ -268,6 +268,11 @@ That fails on a domain-joined machine with no PRT, which is the usual cause of
 
 ## Installing
 
+> **Install from a local, non-synced folder** such as `C:\Temp\DriveMapper`. The installer's
+> actions run as **SYSTEM**, which cannot read a file OneDrive is holding as a placeholder in
+> a user's redirected Desktop or Documents folder. Installing from there fails with a bare
+> `Error 1722` and no explanation.
+
 From an **elevated** prompt:
 
 ```powershell
