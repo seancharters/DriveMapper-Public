@@ -228,13 +228,54 @@ Comments and trailing commas are allowed.
 
 | Field | Meaning |
 | --- | --- |
-| `driveLetter` | `"F"` or `"F:"`. Any letter except `C:`. A drive letter already held by a local volume is left alone at run time. |
+| `driveLetter` | `"F"` or `"F:"`. Any letter except `C:`. A drive letter already held by a local volume is left alone at run time. Several mappings may share one letter — see [One letter, different share per group](#one-letter-different-share-per-group). |
 | `uncPath` | `\\server\share`. Must be UNC. |
 | `label` | Optional friendly name shown in Explorer. |
 | `groupId` | **Preferred.** Entra group object ID — survives group renames. |
 | `groupName` | Display name. Convenient, but matched only when group names are available. |
 | `groupSid` | Windows/AD group SID. Only for `groupSource: windowsToken`. |
 | `allUsers` | Map for everyone; no group lookup. |
+
+### One letter, different share per group
+
+Several mappings may claim the same drive letter, so one letter can serve a different share
+depending on who signs in. The first mapping **in config order** that the user qualifies for
+wins; put the specific cases first and an `allUsers` fallback last.
+
+```jsonc
+"mappings": [
+  { "driveLetter": "S", "uncPath": "\\\\fs01\\finance", "label": "Team",
+    "groupId": "11111111-1111-1111-1111-111111111111" },
+  { "driveLetter": "S", "uncPath": "\\\\fs01\\hr", "label": "Team",
+    "groupId": "22222222-2222-2222-2222-222222222222" },
+  { "driveLetter": "S", "uncPath": "\\\\fs01\\common", "label": "Team", "allUsers": true }
+]
+```
+
+A user in HR gets `S: -> \\fs01\hr`; a user in both Finance and HR gets Finance, because it
+is listed first. Someone in neither gets the fallback. Drop the last entry and someone in
+neither group simply gets no `S:`.
+
+Rules the import enforces, because they are contention no user could ever resolve:
+
+* An `allUsers` mapping matches everyone, so it must be **last** on its letter. Anything
+  after it could never apply.
+* Two mappings on one letter must not select the **same** group — the second could never win.
+
+Behaviour worth knowing:
+
+* **Membership changes are a remap, not a disconnect.** The winner is mapped before anything
+  is removed, so a user moving from Finance to HR sees `S:` repoint rather than disappear.
+* **Unknown membership leaves the letter alone.** If the group for a candidate cannot be
+  resolved — Graph unreachable and no usable cache — nothing on that letter is mapped or
+  removed. "Unknown" never falls through to the `allUsers` fallback, which would otherwise
+  quietly point a user at the wrong share.
+* Use the same `label` on every candidate for a letter unless you want the name in Explorer
+  to change per group.
+
+`DriveMapper.Service.exe --diagnose` prints the verdict for each mapping, including
+`skip — S: taken by an earlier mapping`, so you can confirm which claim wins for a signed-in
+user.
 
 ### `options`
 
