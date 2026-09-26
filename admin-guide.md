@@ -21,8 +21,9 @@ This guide covers everything needed to deploy and run DriveMapper from the relea
 7. [Updating drive mappings](#updating-drive-mappings)
 8. [Rotating the client secret](#rotating-the-client-secret)
 9. [The tray icon](#the-tray-icon)
-10. [Command reference](#command-reference)
-11. [Troubleshooting](#troubleshooting)
+10. [Saved credentials](#saved-credentials)
+11. [Command reference](#command-reference)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -204,7 +205,8 @@ Get-MgGroup -Filter "startswith(displayName,'SG-Drive-')" |
     "groupCacheMaxAgeHours": 336,
     "logRetentionDays": 30,
     "trayIcon": true,
-    "minimumUserIntervalMinutes": 5
+    "minimumUserIntervalMinutes": 5,
+    "allowSavedCredentials": true
   },
 
   "mappings": [
@@ -288,6 +290,7 @@ user.
 | `logRetentionDays` | `30` | `0` disables log cleanup. |
 | `trayIcon` | `true` | Show the notification-area icon. |
 | `minimumUserIntervalMinutes` | `5` | Floor for the interval a user may choose in the tray. |
+| `allowSavedCredentials` | `true` | Let a user save a user name and password for a file server that refuses their own sign-in, kept in their Windows Credential Manager. See [Saved credentials](#saved-credentials). `false` removes the prompt *and* stops the agent using anything already saved. |
 
 ### `groupSource`
 
@@ -550,14 +553,85 @@ The service starts one `DriveMapper.Tray.exe` per interactive session. It offers
   minutes, stored in `HKCU\Software\DriveMapper`. It cannot go below
   `minimumUserIntervalMinutes`, so a user can ask for their drives more often but can never
   relax what you configured. The machine-wide `recheckIntervalMinutes` is unaffected.
+- **Enter credentials...** — shown when a drive failed because the share would not accept
+  the user's own sign-in. See [Saved credentials](#saved-credentials)
+- **Saved credentials** — forget what has been saved for a server
 - **Open log folder**, and the last run's outcome in the tooltip and menu header
 
 The tray holds **no privilege of its own**. Everything goes to the service over the named
 pipe `\\.\pipe\DriveMapper.Control`, and the service derives which session a request applies
 to from the *calling process*, never from the message — so a user can only ever remap their
-own drives.
+own drives. The one thing it does directly is map a drive with credentials the user has just
+typed, which needs no privilege because it happens in their own session, as them.
 
 Turn it off fleet-wide with `"trayIcon": false`.
+
+---
+
+## Saved credentials
+
+DriveMapper maps drives **as the signed-in user**, using their own Kerberos identity. Where
+that identity is not accepted — the classic case being a cloud-only Entra-joined device
+reaching an on-premises file server without Cloud Kerberos Trust — every mapping fails with
+error 1326, 86 or 5, and the user has no way to do anything about it.
+
+When a mapping fails **for an authentication reason**, the tray icon now raises a
+notification in the corner of the screen:
+
+> **F: needs your credentials**
+> `\\fs01\finance` would not accept your sign-in. Click here to enter a user name and password.
+
+Clicking it opens a dialog asking for a user name and password for that server. The
+credentials are **proved by mapping the drive there and then** and only saved once they
+work; every later run uses them automatically.
+
+This does not replace sorting the authentication path out — see
+[Authentication to the file share](#️-authentication-to-the-file-share). It is what stands
+between a user and a dead drive letter while you do.
+
+### Where they are kept
+
+In that user's **Windows Credential Manager**, under the target name
+`DriveMapper:target=<SERVER>`. DriveMapper writes no password file of its own; nothing
+reaches the service, the configuration, or the logs.
+
+```powershell
+# As the affected user, non-elevated:
+cmdkey /list:DriveMapper:target=FS01
+cmdkey /delete:DriveMapper:target=FS01     # the tray menu's "Saved credentials" does the same
+```
+
+The entries are `CRED_TYPE_GENERIC` rather than `CRED_TYPE_DOMAIN_PASSWORD`. A generic entry
+can be read back by that user's own processes, so the agent hands the credentials to the
+mapping call explicitly instead of hoping the SMB redirector picks a domain entry up — and
+the **Network access: Do not allow storage of passwords and credentials for network
+authentication** policy blocks domain entries but not generic ones. The cost, stated plainly:
+a generic credential is readable by anything running as that user, the same exposure as any
+"remember my password" feature.
+
+### Behaviour worth knowing before you field the questions
+
+- **Per server, not per drive.** Windows holds one SMB session per server per user, so one
+  entry covers every drive on `fs01` — and giving two shares on one server different accounts
+  is what produces error 1219.
+- **A stale password never blocks a fixed sign-in.** If saved credentials are refused, the
+  agent retries with the user's own identity before giving up, and logs that the saved entry
+  has become redundant when that works.
+- **Nobody is nagged.** One notification per server every four hours at most, whatever
+  `recheckIntervalMinutes` is. The prompt stays on the tray menu in between.
+- **Only authentication failures prompt.** An unreachable server or dropped network
+  (53, 54, 1203, 1222) is retried silently, and account states a password cannot fix
+  (1331 disabled, 1909 locked out) are not offered a prompt either.
+
+### Turning it off
+
+```jsonc
+"options": { "allowSavedCredentials": false }
+```
+
+No prompt is offered, and the agent ignores any credential already saved. Set this where the
+answer to a rejected mapping has to be fixing the authentication path rather than letting a
+second password live on the device.
 
 ---
 

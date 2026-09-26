@@ -56,7 +56,13 @@
     // Notification-area icon giving users "Map drives now" and a personal sync interval.
     // Their choice affects only their own session; the schedule above stays authoritative.
     "trayIcon": true,
-    "minimumUserIntervalMinutes": 5
+    "minimumUserIntervalMinutes": 5,
+
+    // When a share refuses the user's own sign-in, let them enter a user name and password
+    // for that server and keep it in the Windows Credential Manager for later runs.
+    // Set false to make a rejected mapping stay rejected until the authentication path
+    // itself is fixed; any credential already saved is then ignored too.
+    "allowSavedCredentials": true
   },
 
   "mappings": [
